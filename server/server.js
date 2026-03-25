@@ -339,6 +339,70 @@ app.use('/api/admin/pricing', authenticateToken, pricingRoutes);
 app.use('/api/admin/ai-pricing', authenticateToken, aiPricingRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/chatbot', authenticateToken, require('./routes/chatbot'));
+app.use('/api/speedtest', authenticateToken, require('./routes/speedtest'));
+
+// Log a payment failure from the frontend (client-side Razorpay failures)
+app.post('/api/payment-failures/log', authenticateToken, async (req, res) => {
+  try {
+    const PaymentFailureLogger = require('./utils/PaymentFailureLogger');
+    const Subscription = require('./models/Subscription');
+    const { amount, planName, planId, errorCode, errorDescription, razorpayOrderId, razorpayPaymentId, type } = req.body;
+    await PaymentFailureLogger.logFailure({
+      userId: req.user._id?.toString(),
+      userEmail: req.user.email,
+      userName: `${req.user.firstName} ${req.user.lastName}`,
+      amount: amount || 0,
+      planName: planName || 'unknown',
+      planId: planId || '',
+      errorCode: errorCode || 'CLIENT_FAILURE',
+      errorDescription: errorDescription || 'Payment failed on client',
+      razorpayOrderId: razorpayOrderId || '',
+      razorpayPaymentId: razorpayPaymentId || '',
+      source: 'client',
+      type: type || 'subscription'
+    });
+
+    // Also increment paymentFailures on the user's active subscription (for At-Risk tracking)
+    try {
+      await Subscription.findOneAndUpdate(
+        { user: req.user._id, status: { $in: ['active', 'grace_period', 'expired'] } },
+        { $inc: { paymentFailures: 1 } },
+        { sort: { createdAt: -1 } }
+      );
+      console.log(`⚠️ Client: Incremented paymentFailures for user ${req.user.email}`);
+    } catch (subErr) {
+      console.error('Failed to increment subscription paymentFailures:', subErr.message);
+    }
+
+    res.json({ success: true, message: 'Payment failure logged' });
+  } catch (error) {
+    console.error('Failed to log payment failure:', error);
+    res.status(500).json({ success: false });
+  }
+});
+
+// Payment failures API for admin panel
+app.get('/api/admin/payment-failures', authenticateToken, (req, res) => {
+  try {
+    const PaymentFailureLogger = require('./utils/PaymentFailureLogger');
+    const stats = PaymentFailureLogger.getStats();
+    const failures = PaymentFailureLogger.getFailures({ limit: parseInt(req.query.limit) || 50 });
+    res.json({ success: true, data: { stats, failures } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch payment failures' });
+  }
+});
+
+// Download payment failures as CSV (Excel-readable)
+app.get('/api/admin/payment-failures/download', authenticateToken, (req, res) => {
+  const csvPath = path.join(__dirname, 'payment_failures.csv');
+  if (!require('fs').existsSync(csvPath)) {
+    return res.status(404).json({ success: false, message: 'No payment failures recorded yet.' });
+  }
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename=payment_failures.csv');
+  res.sendFile(csvPath);
+});
 
 // Churn Monitoring API endpoint
 app.get('/api/admin/churn-alerts', authenticateToken, async (req, res) => {

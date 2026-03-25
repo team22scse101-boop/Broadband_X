@@ -68,6 +68,8 @@ import { Plan, Subscription } from '../types/index';
 import RazorpayPaymentForm from '../components/RazorpayPaymentForm';
 import AIChatBot from '../components/AIChatBot';
 import SpeedTest from '../components/SpeedTest';
+import RenewalPromotionCard from '../components/RenewalPromotionCard';
+import PlanPromotionCard from '../components/PlanPromotionCard';
 import ProfilePage from './ProfilePage';
 import { Modal, ModalBody } from '../components/Modal';
 
@@ -107,6 +109,12 @@ const CustomerDashboard: React.FC = () => {
   const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState<any>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
+
+  // Renewal dialog state
+  const [showRenewalDialog, setShowRenewalDialog] = useState(false);
+  const [renewalSubscription, setRenewalSubscription] = useState<Subscription | null>(null);
+  const [renewalLoading, setRenewalLoading] = useState(false);
+
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -401,6 +409,123 @@ const CustomerDashboard: React.FC = () => {
   const handleCancelSubscription = (subscription: Subscription) => {
     setSelectedSubscription(subscription);
     setShowCancelModal(true);
+  };
+
+  // Renewal flow — open confirmation dialog
+  const handleRenewPlan = (subscription: Subscription) => {
+    setRenewalSubscription(subscription);
+    setShowRenewalDialog(true);
+  };
+
+  const handleConfirmRenewal = async () => {
+    if (!renewalSubscription) return;
+    setRenewalLoading(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+      const renewalAmount = renewalSubscription.pricing?.totalAmount || renewalSubscription.pricing?.finalPrice || renewalSubscription.plan?.pricing?.monthly || 0;
+
+      // 1. Load Razorpay script
+      if (!window.Razorpay) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Failed to load Razorpay'));
+          document.body.appendChild(script);
+        });
+      }
+
+      // 2. Create Razorpay order
+      const orderRes = await axios.post(`${API_URL}/razorpay/create-order`, {
+        planId: renewalSubscription.plan?._id,
+        amount: renewalAmount * 100 // paise
+      }, { headers: { Authorization: `Bearer ${token}` } });
+
+      const { order } = orderRes.data.data;
+
+      // 3. Open Razorpay checkout
+      const rzp = new window.Razorpay({
+        key: process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_RvlGVIoKWbOQVK',
+        amount: order.amount,
+        currency: order.currency,
+        name: 'BroadbandX',
+        description: `Renew ${renewalSubscription.plan?.name || 'Plan'} - 30 Days`,
+        order_id: order.id,
+        handler: async (response: any) => {
+          try {
+            // 4. Verify payment
+            await axios.post(`${API_URL}/razorpay/verify`, {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            }, { headers: { Authorization: `Bearer ${token}` } });
+
+            // 5. Call renew API with payment details
+            await axios.put(
+              `${API_URL}/subscriptions/${renewalSubscription._id}/renew`,
+              {
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id
+              },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            setShowRenewalDialog(false);
+            setRenewalSubscription(null);
+            setSnackbar({ open: true, message: '✅ Plan renewed successfully! Payment recorded. Your new billing cycle will start after the current one expires.', severity: 'success' });
+            await fetchSubscriptions();
+          } catch (err: any) {
+            console.error('Renewal after payment failed:', err);
+            setSnackbar({ open: true, message: 'Payment successful but renewal failed. Please contact support with your payment ID: ' + response.razorpay_payment_id, severity: 'error' });
+          }
+          setRenewalLoading(false);
+        },
+        theme: { color: '#2196F3' },
+        modal: {
+          ondismiss: async () => {
+            setRenewalLoading(false);
+            setSnackbar({ open: true, message: 'Payment cancelled. Subscription not renewed.', severity: 'warning' });
+            // Log cancellation as failure
+            try {
+              await axios.post(`${API_URL}/payment-failures/log`, {
+                amount: renewalAmount,
+                planName: renewalSubscription?.plan?.name || 'unknown',
+                planId: renewalSubscription?.plan?._id || '',
+                errorCode: 'USER_DISMISSED',
+                errorDescription: 'User cancelled/dismissed renewal payment',
+                razorpayOrderId: order.id,
+                type: 'renewal'
+              }, { headers: { Authorization: `Bearer ${token}` } });
+            } catch (e) { console.error('Failed to log dismissal:', e); }
+          }
+        }
+      });
+
+      rzp.on('payment.failed', async (response: any) => {
+        setRenewalLoading(false);
+        setSnackbar({ open: true, message: `Payment failed: ${response.error.description}`, severity: 'error' });
+        // Log failure to server
+        try {
+          await axios.post(`${API_URL}/payment-failures/log`, {
+            amount: renewalAmount,
+            planName: renewalSubscription?.plan?.name || 'unknown',
+            planId: renewalSubscription?.plan?._id || '',
+            errorCode: response.error.code || 'RAZORPAY_ERROR',
+            errorDescription: response.error.description || 'Payment failed',
+            razorpayOrderId: order.id,
+            razorpayPaymentId: response.error.metadata?.payment_id || '',
+            type: 'renewal'
+          }, { headers: { Authorization: `Bearer ${token}` } });
+        } catch (e) { console.error('Failed to log payment failure:', e); }
+      });
+
+      rzp.open();
+    } catch (error: any) {
+      console.error('Renewal failed:', error);
+      setSnackbar({ open: true, message: error.response?.data?.message || 'Failed to initiate renewal payment. Please try again.', severity: 'error' });
+      setRenewalLoading(false);
+    }
   };
 
   const confirmCancelSubscription = async () => {
@@ -798,13 +923,22 @@ const CustomerDashboard: React.FC = () => {
                     </Typography>
                   </Box>
 
-                  <Stack direction="row" spacing={1} mt={2}>
+                  <Stack direction="row" spacing={1} mt={2} flexWrap="wrap" useFlexGap>
                     <Button
                       size="small"
                       variant="outlined"
                       onClick={() => handleViewUsage(subscription)}
                     >
                       View Usage
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="success"
+                      onClick={() => handleRenewPlan(subscription)}
+                      sx={{ fontWeight: 700 }}
+                    >
+                      🔄 Renew Plan
                     </Button>
                     <Button
                       size="small"
@@ -820,17 +954,7 @@ const CustomerDashboard: React.FC = () => {
             ))}
           </Box>
         ) : (
-          <Card sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="h6" color="textSecondary" gutterBottom>
-              No Active Subscriptions
-            </Typography>
-            <Typography variant="body2" color="textSecondary" paragraph>
-              You don't have any active subscriptions yet. Browse our plans to get started!
-            </Typography>
-            <Button variant="contained" onClick={() => setActiveSection('plans')}>
-              Browse Plans
-            </Button>
-          </Card>
+          <PlanPromotionCard onBrowsePlans={() => setActiveSection('plans')} variant="full" />
         )}
       </Box>
     );
@@ -1007,13 +1131,45 @@ const CustomerDashboard: React.FC = () => {
                       Pay Now
                     </Button>
                   ) : (
-                    <Button variant="contained" fullWidth color="primary" onClick={() => setActiveSection('plans')}>
-                      Get a Plan
-                    </Button>
+                    <PlanPromotionCard onBrowsePlans={() => setActiveSection('plans')} variant="compact" />
                   )}
                 </CardContent>
               </Card>
             </Box>
+
+            {/* Promotional Card — shown when user has NO active subscription */}
+            {stats.activeSubscriptions === 0 && (
+              <Box mt={3}>
+                <PlanPromotionCard onBrowsePlans={() => setActiveSection('plans')} variant="full" />
+              </Box>
+            )}
+
+            {/* Renewal Promotion Card — shown when plan is expiring soon */}
+            {(() => {
+              const activeSub = subscriptions.find(s => s.status === 'active');
+              if (!activeSub?.endDate) return null;
+              const daysLeft = Math.ceil(
+                (new Date(activeSub.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+              );
+              if (daysLeft > 10) return null;
+              return (
+                <Box mt={3}>
+                  <RenewalPromotionCard
+                    planName={activeSub.plan?.name || 'Your Plan'}
+                    endDate={activeSub.endDate}
+                    speed={activeSub.plan?.features?.speed?.download
+                      ? `${activeSub.plan.features.speed.download} ${activeSub.plan.features.speed.unit || 'Mbps'}`
+                      : undefined}
+                    price={activeSub.pricing?.finalPrice || activeSub.plan?.pricing?.monthly}
+                    onRenew={() => {
+                      const renewSub = subscriptions.find(s => s.status === 'active');
+                      if (renewSub) handleRenewPlan(renewSub);
+                    }}
+                    onBrowsePlans={() => setActiveSection('plans')}
+                  />
+                </Box>
+              );
+            })()}
 
             {/* Billing Reminders Section on Dashboard */}
             <Box mt={3}>
@@ -1312,6 +1468,97 @@ const CustomerDashboard: React.FC = () => {
                   {paymentLoading ? 'Processing...' : `Pay ₹${selectedBill.amount.toLocaleString()}`}
                 </Button>
               </Box>
+            </Box>
+          )}
+        </ModalBody>
+      </Modal>
+
+      {/* Renewal Confirmation Dialog */}
+      <Modal isOpen={showRenewalDialog} onClose={() => { setShowRenewalDialog(false); setRenewalSubscription(null); }}>
+        <ModalBody>
+          {renewalSubscription && (
+            <Box sx={{ p: 2 }}>
+              <Box sx={{ textAlign: 'center', mb: 3 }}>
+                <Box sx={{ display: 'inline-flex', p: 1.5, borderRadius: 2, bgcolor: '#e8f5e9', mb: 1.5 }}>
+                  <Typography sx={{ fontSize: 36 }}>🔄</Typography>
+                </Box>
+                <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>
+                  Renew Your Plan
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  Continue enjoying uninterrupted broadband service
+                </Typography>
+              </Box>
+
+              <Paper elevation={0} sx={{ p: 2.5, borderRadius: 2, bgcolor: '#f5f5f5', mb: 2.5 }}>
+                <Stack spacing={1.5}>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2" color="textSecondary">Plan</Typography>
+                    <Typography variant="body2" fontWeight={700}>{renewalSubscription.plan?.name || 'Current Plan'}</Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2" color="textSecondary">Current Cycle Ends</Typography>
+                    <Typography variant="body2" fontWeight={600}>
+                      {renewalSubscription.endDate ? new Date(renewalSubscription.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                    </Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2" color="textSecondary">New Cycle</Typography>
+                    <Typography variant="body2" fontWeight={600} color="success.main">
+                      {renewalSubscription.endDate
+                        ? `${new Date(renewalSubscription.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} → ${new Date(new Date(renewalSubscription.endDate).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                        : '30 days'}
+                    </Typography>
+                  </Box>
+                  <Box display="flex" justifyContent="space-between" sx={{ pt: 1, borderTop: '1px dashed #ddd' }}>
+                    <Typography variant="body1" fontWeight={700}>Amount</Typography>
+                    <Typography variant="body1" fontWeight={700} color="primary">
+                      ₹{(renewalSubscription.pricing?.totalAmount || renewalSubscription.pricing?.finalPrice || renewalSubscription.plan?.pricing?.monthly || 0).toLocaleString('en-IN')}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </Paper>
+
+              <Alert severity="info" sx={{ mb: 2.5, borderRadius: 2 }}>
+                The renewed plan will activate automatically after your current cycle ends. You won't lose any remaining days.
+              </Alert>
+
+              <Stack spacing={2}>
+                <Stack direction="row" spacing={2}>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    onClick={() => { setShowRenewalDialog(false); setRenewalSubscription(null); }}
+                    disabled={renewalLoading}
+                    sx={{ py: 1.2 }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    color="success"
+                    onClick={handleConfirmRenewal}
+                    disabled={renewalLoading}
+                    sx={{
+                      py: 1.2,
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+                    }}
+                  >
+                    {renewalLoading ? 'Processing...' : '💳 Pay & Renew'}
+                  </Button>
+                </Stack>
+                <Button
+                  variant="text"
+                  fullWidth
+                  onClick={() => { setShowRenewalDialog(false); setRenewalSubscription(null); setActiveSection('plans'); }}
+                  sx={{ textTransform: 'none', color: 'primary.main' }}
+                >
+                  Or browse other plans →
+                </Button>
+              </Stack>
             </Box>
           )}
         </ModalBody>

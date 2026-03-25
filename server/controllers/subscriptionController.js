@@ -448,7 +448,9 @@ const downgradePlan = asyncHandler(async (req, res) => {
 // @route   PUT /api/subscriptions/:id/renew
 // @access  Private
 const renewSubscription = asyncHandler(async (req, res) => {
-  const subscription = await Subscription.findById(req.params.id);
+  const { razorpay_payment_id, razorpay_order_id } = req.body;
+
+  const subscription = await Subscription.findById(req.params.id).populate('plan');
 
   if (!subscription) {
     return res.status(404).json({
@@ -464,27 +466,38 @@ const renewSubscription = asyncHandler(async (req, res) => {
     });
   }
 
-  // Extend subscription — monthly = 30 days
-  const newEndDate = new Date(subscription.endDate);
+  if (!razorpay_payment_id) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Payment is required for renewal. Please complete Razorpay payment.'
+    });
+  }
+
+  // Calculate new end date: current endDate + 30 days (monthly)
+  const currentEndDate = new Date(subscription.endDate);
+  const newEndDate = new Date(currentEndDate);
   if (subscription.billingCycle === 'yearly') {
     newEndDate.setFullYear(newEndDate.getFullYear() + 1);
   } else {
     newEndDate.setDate(newEndDate.getDate() + 30); // 30-day billing cycle
   }
 
+  // Update subscription
   subscription.endDate = newEndDate;
   subscription.status = 'active';
   subscription.autoRenewal.nextRenewalDate = newEndDate;
 
-  await subscription.save();
+  // Add payment record with Razorpay details
+  const invoiceNumber = `INV-REN-${Date.now()}`;
+  const paymentAmount = subscription.pricing?.totalAmount || subscription.pricing?.finalPrice || 0;
 
-  // Add payment record
   subscription.paymentHistory.push({
     date: new Date(),
-    amount: subscription.pricing.totalAmount,
-    paymentMethod: 'auto-renewal',
+    amount: paymentAmount,
+    paymentMethod: 'razorpay',
+    transactionId: razorpay_payment_id,
     status: 'completed',
-    invoiceNumber: `INV-${Date.now()}`
+    invoiceNumber: invoiceNumber
   });
 
   await subscription.save();
@@ -492,16 +505,54 @@ const renewSubscription = asyncHandler(async (req, res) => {
   // Add service history
   await subscription.addServiceHistory(
     'renewed',
-    'Subscription renewed successfully',
+    `Subscription renewed via Razorpay (${razorpay_payment_id}). New expiry: ${newEndDate.toLocaleDateString('en-IN')}`,
     req.user._id,
-    { newEndDate }
+    { newEndDate, paymentId: razorpay_payment_id }
   );
+
+  // Create a Billing invoice record
+  try {
+    const Billing = require('../models/Billing');
+    const billing = new Billing({
+      user: subscription.user,
+      subscription: subscription._id,
+      amount: paymentAmount,
+      items: [{
+        description: `${subscription.plan?.name || 'Plan'} - Monthly Renewal`,
+        amount: paymentAmount,
+        quantity: 1,
+        total: paymentAmount
+      }],
+      subtotal: paymentAmount,
+      tax: 0,
+      total: paymentAmount,
+      status: 'paid',
+      paymentMethod: {
+        type: 'other',
+        last4: 'RZPY'
+      },
+      transactionId: razorpay_payment_id,
+      paymentDate: new Date(),
+      dueDate: newEndDate,
+      billingPeriod: {
+        start: currentEndDate,
+        end: newEndDate
+      },
+      notes: `Renewal payment via Razorpay. Payment ID: ${razorpay_payment_id}`
+    });
+    await billing.save();
+    console.log('✅ Billing invoice created for renewal:', billing.invoiceNumber);
+  } catch (billingErr) {
+    console.error('⚠️ Failed to create billing record (non-fatal):', billingErr.message);
+  }
 
   res.status(200).json({
     status: 'success',
     message: 'Subscription renewed successfully',
     data: {
-      subscription
+      subscription,
+      newEndDate,
+      paymentId: razorpay_payment_id
     }
   });
 });

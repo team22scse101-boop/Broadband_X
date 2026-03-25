@@ -135,10 +135,30 @@ const ownerOrAdmin = (resourceUserIdField = 'user') => {
         return next();
       }
 
-      // For customers, check if they own the resource
-      const resourceUserId = req.params.userId || req.body[resourceUserIdField] || req.query.userId;
+      // Try to get the userId from params or body
+      let resourceUserId = req.params.userId || req.body[resourceUserIdField] || req.query.userId;
 
-      if (req.user._id.toString() !== resourceUserId) {
+      // If no userId found but we have a resource :id param, look up the subscription
+      if (!resourceUserId && req.params.id) {
+        try {
+          const Subscription = require('../models/Subscription');
+          const subscription = await Subscription.findById(req.params.id);
+          if (subscription) {
+            resourceUserId = subscription.user.toString();
+            console.log('🔐 Ownership lookup: subscription.user =', resourceUserId, ', req.user._id =', req.user._id.toString());
+          } else {
+            console.log('🔐 Subscription not found for id:', req.params.id);
+          }
+        } catch (lookupErr) {
+          console.error('🔐 Subscription lookup error:', lookupErr.message);
+        }
+      }
+
+      const userId = req.user._id.toString();
+      const ownerId = resourceUserId ? resourceUserId.toString() : null;
+
+      if (!ownerId || userId !== ownerId) {
+        console.log('🔐 DENIED: userId=', userId, 'ownerId=', ownerId, 'params=', req.params);
         return res.status(403).json({
           status: 'error',
           message: 'Access denied. You can only access your own resources'

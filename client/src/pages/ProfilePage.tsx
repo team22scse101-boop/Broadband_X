@@ -246,45 +246,6 @@ const ProfilePage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Data Usage Card */}
-        <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
-          <CardContent sx={{ p: 3 }}>
-            <Typography variant="h6" fontWeight={700} gutterBottom>Data Usage This Cycle</Typography>
-            <Divider sx={{ mb: 2 }} />
-
-            <Box textAlign="center" py={2}>
-              <Typography variant="h3" fontWeight={700} color="primary">
-                {usageGB}
-                <Typography component="span" variant="h6" color="textSecondary"> GB</Typography>
-              </Typography>
-              <Typography variant="body2" color="textSecondary" mb={2}>
-                of {dataLimitGB} GB used
-              </Typography>
-
-              <LinearProgress
-                variant="determinate"
-                value={usagePercent}
-                sx={{
-                  height: 10,
-                  borderRadius: 5,
-                  bgcolor: 'grey.200',
-                  '& .MuiLinearProgress-bar': {
-                    borderRadius: 5,
-                    background: usagePercent > 90
-                      ? 'linear-gradient(90deg, #f44336, #d32f2f)'
-                      : usagePercent > 70
-                        ? 'linear-gradient(90deg, #ff9800, #f57c00)'
-                        : 'linear-gradient(90deg, #667eea, #764ba2)',
-                  },
-                }}
-              />
-              <Typography variant="caption" color="textSecondary" mt={1} display="block">
-                {usagePercent.toFixed(1)}% of plan limit used
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
-
         {/* Security & Preferences */}
         <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
           <CardContent sx={{ p: 3 }}>

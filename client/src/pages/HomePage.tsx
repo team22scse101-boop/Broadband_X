@@ -26,7 +26,7 @@ const HomePage: React.FC = () => {
     if (isAuthenticated) {
       navigate(isAdmin ? '/admin' : '/dashboard');
     } else {
-      navigate('/login');
+      navigate('/register');
     }
   };
 
@@ -330,7 +330,7 @@ const HomePage: React.FC = () => {
           </Box>
           <Box sx={{ mt: 4, pt: 4, borderTop: 1, borderColor: 'grey.700', textAlign: 'center' }}>
             <Typography variant="body2" color="grey.400">
-              © 2024 BroadbandX. All rights reserved.
+              © 2026 BroadbandX. All rights reserved.
             </Typography>
           </Box>
         </Container>

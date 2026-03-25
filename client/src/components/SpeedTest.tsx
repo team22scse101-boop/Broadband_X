@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import axios from 'axios';
 import {
     Box,
     Typography,
@@ -140,7 +141,19 @@ const SpeedTest: React.FC = () => {
             jitter: finalJitter,
             timestamp: new Date(),
         };
-        setHistory(prev => [result, ...prev].slice(0, 5));
+        setHistory(prev => [result, ...prev].slice(0, 20));
+
+        // Save to backend
+        try {
+            const token = localStorage.getItem('access_token');
+            await axios.post(
+                `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/speedtest`,
+                { download: downResult, upload: upResult, ping: finalPing, jitter: finalJitter },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+        } catch (err) {
+            console.error('Failed to save speed test result:', err);
+        }
     }, [simulatePhase]);
 
     const stopTest = () => {
@@ -155,6 +168,32 @@ const SpeedTest: React.FC = () => {
             abortRef.current = true;
             if (animRef.current) cancelAnimationFrame(animRef.current);
         };
+    }, []);
+
+    // Load speed test history from backend on mount
+    useEffect(() => {
+        const loadHistory = async () => {
+            try {
+                const token = localStorage.getItem('access_token');
+                if (!token) return;
+                const res = await axios.get(
+                    `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/speedtest/history`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                if (res.data.success && res.data.data.length > 0) {
+                    setHistory(res.data.data.map((r: any) => ({
+                        download: r.download,
+                        upload: r.upload,
+                        ping: r.ping,
+                        jitter: r.jitter,
+                        timestamp: new Date(r.createdAt),
+                    })));
+                }
+            } catch (err) {
+                console.error('Failed to load speed test history:', err);
+            }
+        };
+        loadHistory();
     }, []);
 
     // Gauge calculations
@@ -481,7 +520,7 @@ const SpeedTest: React.FC = () => {
                     {history.length > 0 && (
                         <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
                             <CardContent>
-                                <Typography variant="h6" fontWeight={700} gutterBottom>Recent Tests</Typography>
+                                <Typography variant="h6" fontWeight={700} gutterBottom>Recent Tests (Last 7 Days)</Typography>
                                 <Stack spacing={1}>
                                     {history.map((test, i) => (
                                         <Paper
@@ -498,7 +537,8 @@ const SpeedTest: React.FC = () => {
                                                 alignItems: 'center',
                                             }}
                                         >
-                                            <Typography variant="caption" color="textSecondary" sx={{ minWidth: 70 }}>
+                                            <Typography variant="caption" color="textSecondary" sx={{ minWidth: 120 }}>
+                                                {test.timestamp.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}{' '}
                                                 {test.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                                             </Typography>
                                             <Stack direction="row" spacing={2}>

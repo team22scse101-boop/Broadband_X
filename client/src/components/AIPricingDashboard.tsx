@@ -38,7 +38,9 @@ import {
     Assessment as AssessmentIcon,
     BarChart as BarChartIcon,
     Settings as SettingsIcon,
-    CheckCircle as CheckCircleIcon
+    CheckCircle as CheckCircleIcon,
+    ErrorOutline as ErrorOutlineIcon,
+    FileDownload as FileDownloadIcon
 } from '@mui/icons-material';
 
 // Import chart components
@@ -272,6 +274,11 @@ const AIPricingDashboard: React.FC = () => {
     // Snackbar state
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
+    // Payment failures state
+    const [paymentFailures, setPaymentFailures] = useState<any[]>([]);
+    const [failureStats, setFailureStats] = useState<any>({ total: 0, today: 0, thisWeek: 0, thisMonth: 0, totalAmount: 0 });
+    const [failuresLoading, setFailuresLoading] = useState(false);
+
     // Load initial data
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -296,6 +303,31 @@ const AIPricingDashboard: React.FC = () => {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    // Load payment failures when Payment Failures tab is active
+    const loadPaymentFailures = useCallback(async () => {
+        setFailuresLoading(true);
+        try {
+            const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+            const response = await fetch('http://localhost:5001/api/admin/payment-failures?limit=100', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (data.success) {
+                setPaymentFailures(data.data.failures || []);
+                setFailureStats(data.data.stats || { total: 0, today: 0, thisWeek: 0, thisMonth: 0, totalAmount: 0 });
+            }
+        } catch (error) {
+            console.error('Failed to load payment failures:', error);
+        }
+        setFailuresLoading(false);
+    }, []);
+
+    useEffect(() => {
+        if (activeTab === 4) {
+            loadPaymentFailures();
+        }
+    }, [activeTab, loadPaymentFailures]);
 
     // Handlers
     const handleCustomerSearch = async (search: string) => {
@@ -788,6 +820,7 @@ const AIPricingDashboard: React.FC = () => {
                     <Tab icon={<PersonSearchIcon />} label="Churn Predictor" />
                     <Tab icon={<WarningIcon />} label={`At-Risk (${riskSummary.highRisk + riskSummary.mediumRisk})`} />
                     <Tab icon={<AttachMoneyIcon />} label="Pricing Engine" />
+                    <Tab icon={<ErrorOutlineIcon />} label={`Payment Failures (${failureStats.total})`} />
                 </Tabs>
 
                 <Box sx={{ p: 3 }}>
@@ -959,6 +992,117 @@ const AIPricingDashboard: React.FC = () => {
                                     <Typography variant="body2"><strong>γ = 0.20</strong> (Churn Risk Weight)</Typography>
                                 </Box>
                             </Card>
+                        </Box>
+                    )}
+
+                    {/* Payment Failures Tab */}
+                    {activeTab === 4 && (
+                        <Box>
+                            {/* Stats Cards */}
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
+                                <Card sx={{ p: 2, textAlign: 'center', bgcolor: 'error.light', borderRadius: 2 }}>
+                                    <Typography variant="h4" color="error.contrastText" fontWeight="bold">{failureStats.total}</Typography>
+                                    <Typography variant="body2" color="error.contrastText">Total Failures</Typography>
+                                </Card>
+                                <Card sx={{ p: 2, textAlign: 'center', bgcolor: 'warning.light', borderRadius: 2 }}>
+                                    <Typography variant="h4" color="warning.contrastText" fontWeight="bold">{failureStats.today}</Typography>
+                                    <Typography variant="body2" color="warning.contrastText">Today</Typography>
+                                </Card>
+                                <Card sx={{ p: 2, textAlign: 'center', bgcolor: 'info.light', borderRadius: 2 }}>
+                                    <Typography variant="h4" color="info.contrastText" fontWeight="bold">{failureStats.thisWeek}</Typography>
+                                    <Typography variant="body2" color="info.contrastText">This Week</Typography>
+                                </Card>
+                                <Card sx={{ p: 2, textAlign: 'center', bgcolor: 'grey.300', borderRadius: 2 }}>
+                                    <Typography variant="h4" fontWeight="bold">₹{(failureStats.totalAmount || 0).toLocaleString('en-IN')}</Typography>
+                                    <Typography variant="body2">Total Amount Lost</Typography>
+                                </Card>
+                            </Box>
+
+                            {/* Actions */}
+                            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                                <Button variant="contained" startIcon={<RefreshIcon />} onClick={loadPaymentFailures}>
+                                    Refresh
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    color="success"
+                                    startIcon={<FileDownloadIcon />}
+                                    onClick={async () => {
+                                        try {
+                                            const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+                                            const response = await fetch('http://localhost:5001/api/admin/payment-failures/download', {
+                                                headers: { 'Authorization': `Bearer ${token}` }
+                                            });
+                                            if (!response.ok) {
+                                                alert(response.status === 404 ? 'No payment failures recorded yet.' : 'Download failed');
+                                                return;
+                                            }
+                                            const blob = await response.blob();
+                                            const url = window.URL.createObjectURL(blob);
+                                            const link = document.createElement('a');
+                                            link.href = url;
+                                            link.setAttribute('download', `payment_failures_${new Date().toISOString().split('T')[0]}.csv`);
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            link.remove();
+                                        } catch (e) { alert('Download failed'); }
+                                    }}
+                                >
+                                    Download CSV
+                                </Button>
+                            </Box>
+
+                            {/* Failures Table */}
+                            {failuresLoading ? (
+                                <Skeleton variant="rectangular" height={300} />
+                            ) : paymentFailures.length === 0 ? (
+                                <Alert severity="success" sx={{ mt: 2 }}>
+                                    🎉 No payment failures recorded. All payments are going through successfully!
+                                </Alert>
+                            ) : (
+                                <Card sx={{ borderRadius: 2, overflow: 'auto' }}>
+                                    <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                        <Box component="thead" sx={{ bgcolor: 'grey.100' }}>
+                                            <Box component="tr">
+                                                <Box component="th" sx={{ p: 1.5, textAlign: 'left', borderBottom: '2px solid', borderColor: 'divider' }}>Time</Box>
+                                                <Box component="th" sx={{ p: 1.5, textAlign: 'left', borderBottom: '2px solid', borderColor: 'divider' }}>Customer</Box>
+                                                <Box component="th" sx={{ p: 1.5, textAlign: 'left', borderBottom: '2px solid', borderColor: 'divider' }}>Plan</Box>
+                                                <Box component="th" sx={{ p: 1.5, textAlign: 'right', borderBottom: '2px solid', borderColor: 'divider' }}>Amount</Box>
+                                                <Box component="th" sx={{ p: 1.5, textAlign: 'left', borderBottom: '2px solid', borderColor: 'divider' }}>Error</Box>
+                                                <Box component="th" sx={{ p: 1.5, textAlign: 'left', borderBottom: '2px solid', borderColor: 'divider' }}>Type</Box>
+                                            </Box>
+                                        </Box>
+                                        <Box component="tbody">
+                                            {paymentFailures.map((f: any, i: number) => (
+                                                <Box component="tr" key={f.id || i} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
+                                                    <Box component="td" sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider', whiteSpace: 'nowrap' }}>
+                                                        {new Date(f.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                    </Box>
+                                                    <Box component="td" sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                                        <Typography variant="body2" fontWeight={600}>{f.userName}</Typography>
+                                                        <Typography variant="caption" color="text.secondary">{f.userEmail}</Typography>
+                                                    </Box>
+                                                    <Box component="td" sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>{f.planName}</Box>
+                                                    <Box component="td" sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider', textAlign: 'right', fontWeight: 600, color: 'error.main' }}>
+                                                        ₹{(f.amount || 0).toLocaleString('en-IN')}
+                                                    </Box>
+                                                    <Box component="td" sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                                        <Typography variant="caption" sx={{ bgcolor: 'error.light', px: 1, py: 0.3, borderRadius: 1, color: 'error.dark' }}>
+                                                            {f.errorCode}
+                                                        </Typography>
+                                                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>{f.errorDescription}</Typography>
+                                                    </Box>
+                                                    <Box component="td" sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                                        <Typography variant="caption" sx={{ bgcolor: f.type === 'renewal' ? 'warning.light' : 'info.light', px: 1, py: 0.3, borderRadius: 1 }}>
+                                                            {f.type}
+                                                        </Typography>
+                                                    </Box>
+                                                </Box>
+                                            ))}
+                                        </Box>
+                                    </Box>
+                                </Card>
+                            )}
                         </Box>
                     )}
                 </Box>

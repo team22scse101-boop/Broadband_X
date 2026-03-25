@@ -363,3 +363,9 @@ backend/.cache/
 # Excel/Docs (keep these for project documentation)
 # *.xlsx
 # *.pdf
+
+# Generated data files (auto-created at runtime)
+server/payment_failures.json
+server/payment_failures.csv
+server/tmp_fix.js
+server/.report_last_runs.json

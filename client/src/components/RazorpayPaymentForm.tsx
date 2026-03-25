@@ -134,20 +134,45 @@ const RazorpayPaymentForm: React.FC<RazorpayPaymentFormProps> = ({ plan, onSucce
           color: '#2196F3'
         },
         modal: {
-          ondismiss: function () {
+          ondismiss: async function () {
             console.log('Payment cancelled by user');
             setLoading(false);
             setError('Payment cancelled. Please try again.');
+            // Log cancellation as failure
+            try {
+              await apiClient.post('/payment-failures/log', {
+                amount: plan.pricing.monthly,
+                planName: plan.name,
+                planId: plan._id,
+                errorCode: 'USER_DISMISSED',
+                errorDescription: 'User cancelled/dismissed payment',
+                razorpayOrderId: order.id,
+                type: 'subscription'
+              });
+            } catch (e) { console.error('Failed to log dismissal:', e); }
           }
         }
       };
 
       const razorpayInstance = new window.Razorpay(options);
       
-      razorpayInstance.on('payment.failed', function (response: any) {
+      razorpayInstance.on('payment.failed', async function (response: any) {
         console.error('Payment failed:', response.error);
         setError(`Payment failed: ${response.error.description}`);
         setLoading(false);
+        // Log failure to server
+        try {
+          await apiClient.post('/payment-failures/log', {
+            amount: plan.pricing.monthly,
+            planName: plan.name,
+            planId: plan._id,
+            errorCode: response.error.code || 'RAZORPAY_ERROR',
+            errorDescription: response.error.description || 'Payment failed',
+            razorpayOrderId: order.id,
+            razorpayPaymentId: response.error.metadata?.payment_id || '',
+            type: 'subscription'
+          });
+        } catch (e) { console.error('Failed to log payment failure:', e); }
       });
 
       razorpayInstance.open();

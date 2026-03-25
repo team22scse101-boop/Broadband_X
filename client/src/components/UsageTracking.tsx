@@ -122,18 +122,43 @@ const UsageTracking: React.FC = () => {
   }
 
   if (error) {
+    // Show friendly message instead of raw error
+    const isNoSubscription = error.toLowerCase().includes('subscription') || error.toLowerCase().includes('not found');
     return (
-      <Alert severity="error" sx={{ mb: 2 }}>
-        {error}
-      </Alert>
+      <Box textAlign="center" py={6}>
+        <Box sx={{ display: 'inline-flex', p: 2, borderRadius: 3, bgcolor: isNoSubscription ? '#e3f2fd' : '#fff3e0', mb: 2 }}>
+          <DataUsageIcon sx={{ fontSize: 48, color: isNoSubscription ? '#1976d2' : '#ed6c02' }} />
+        </Box>
+        <Typography variant="h5" fontWeight={700} gutterBottom>
+          {isNoSubscription ? 'No Active Subscription' : 'Usage Data Unavailable'}
+        </Typography>
+        <Typography variant="body1" color="textSecondary" paragraph sx={{ maxWidth: 450, mx: 'auto' }}>
+          {isNoSubscription
+            ? 'Subscribe to a broadband plan to track your data usage, download/upload speeds, and daily history.'
+            : 'We couldn\'t load your usage data right now. Please try again later.'}
+        </Typography>
+        {!isNoSubscription && (
+          <Button variant="outlined" onClick={fetchUsageData} sx={{ mt: 1 }}>
+            Retry
+          </Button>
+        )}
+      </Box>
     );
   }
 
   if (!currentUsage) {
     return (
-      <Alert severity="info" sx={{ mb: 2 }}>
-        No usage data available. Usage tracking will begin once your subscription is active.
-      </Alert>
+      <Box textAlign="center" py={6}>
+        <Box sx={{ display: 'inline-flex', p: 2, borderRadius: 3, bgcolor: '#e3f2fd', mb: 2 }}>
+          <DataUsageIcon sx={{ fontSize: 48, color: '#1976d2' }} />
+        </Box>
+        <Typography variant="h5" fontWeight={700} gutterBottom>
+          Usage Tracking
+        </Typography>
+        <Typography variant="body1" color="textSecondary" paragraph sx={{ maxWidth: 450, mx: 'auto' }}>
+          No usage data available yet. Usage tracking will begin once your subscription is active and data starts flowing.
+        </Typography>
+      </Box>
     );
   }
 

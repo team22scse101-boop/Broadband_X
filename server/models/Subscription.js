@@ -156,7 +156,7 @@ const subscriptionSchema = new mongoose.Schema({
     date: { type: Date, default: Date.now },
     type: {
       type: String,
-      enum: ['created', 'activated', 'suspended', 'resumed', 'upgraded', 'downgraded', 'cancelled', 'expired'],
+      enum: ['created', 'activated', 'suspended', 'resumed', 'upgraded', 'downgraded', 'cancelled', 'expired', 'renewed'],
       required: true
     },
     description: String,

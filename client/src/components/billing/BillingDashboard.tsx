@@ -601,6 +601,15 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
   }
 
   if (error) {
+    // Show friendly message instead of raw error for auth/data issues
+    if (error.includes('Authentication')) {
+      return (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <Typography variant="h6">Please log in again</Typography>
+          <Typography variant="body2" sx={{ mt: 1 }}>Your session may have expired. Please log out and log back in.</Typography>
+        </Alert>
+      );
+    }
     return (
       <Alert severity="error" sx={{ mb: 2 }}>
         <Typography variant="h6">Unable to load billing information</Typography>
@@ -619,6 +628,77 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
 
   const { subscription, invoices } = data || {};
 
+  // Friendly empty state for users without an active subscription
+  if (!subscription || subscription.status === 'inactive' || subscription.plan?.name === 'No Active Plan') {
+    return (
+      <Box>
+        <Card sx={{ mb: 2, textAlign: 'center', p: 3 }}>
+          <Box sx={{ display: 'inline-flex', p: 1.5, borderRadius: 2, bgcolor: '#e3f2fd', mb: 2 }}>
+            <ReceiptIcon sx={{ fontSize: 48, color: '#1976d2' }} />
+          </Box>
+          <Typography variant="h5" gutterBottom sx={{ fontWeight: 700 }}>
+            No Active Subscription
+          </Typography>
+          <Typography variant="body1" color="textSecondary" paragraph>
+            You don't have any active broadband plan.  
+            Subscribe to a plan to start using BroadbandX and manage your billing here.
+          </Typography>
+          <Alert severity="info" sx={{ mb: 2, mx: 'auto', maxWidth: 450, textAlign: 'left' }}>
+            Once you subscribe to a plan, this section will show your invoices, payment history, and billing details.
+          </Alert>
+        </Card>
+
+        {/* Still show past invoices if any */}
+        {invoices && invoices.length > 0 && (
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Past Invoices
+              </Typography>
+              <TableContainer component={Paper} variant="outlined">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Invoice #</TableCell>
+                      <TableCell>Amount</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {invoices.map((invoice: any, index: number) => (
+                      <TableRow key={`${invoice.id || index}`}>
+                        <TableCell>{invoice.invoiceNumber || `INV-${index + 1}`}</TableCell>
+                        <TableCell>₹{invoice.amount}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={invoice.status}
+                            color={invoice.status?.toLowerCase() === 'paid' ? 'success' : 'warning'}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>{invoice.date}</TableCell>
+                        <TableCell>
+                          <InvoicePaymentButton
+                            invoice={invoice}
+                            paidInvoices={paidInvoices}
+                            onPaymentSuccess={() => {}}
+                            onPaymentError={() => {}}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        )}
+      </Box>
+    );
+  }
+
   return (
     <Box>
       {/* Current Subscription Card */}
@@ -633,11 +713,11 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 6 }}>
                 <Typography variant="body2" color="text.secondary">Plan</Typography>
-                <Typography variant="h6">{subscription.plan?.name || 'Basic Plan29'}</Typography>
+                <Typography variant="h6">{subscription.plan?.name || 'Unknown Plan'}</Typography>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
                 <Typography variant="body2" color="text.secondary">Price</Typography>
-                <Typography variant="h6">₹{subscription.plan?.price || 32.18}/month</Typography>
+                <Typography variant="h6">₹{subscription.plan?.price || 0}/month</Typography>
               </Grid>
               <Grid size={{ xs: 12 }}>
                 <Chip

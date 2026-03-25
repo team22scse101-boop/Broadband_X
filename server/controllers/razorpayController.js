@@ -4,6 +4,7 @@ const Subscription = require('../models/Subscription');
 const User = require('../models/User');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
+const PaymentFailureLogger = require('../utils/PaymentFailureLogger');
 
 // Initialize Razorpay
 const razorpay = new Razorpay({
@@ -406,7 +407,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     });
   } else {
     // Payment verification failed
-    const payment = await Payment.findOne({ razorpayOrderId });
+    const payment = await Payment.findOne({ razorpayOrderId: razorpay_order_id });
     if (payment) {
       payment.status = 'failed';
       payment.errorReason = 'Signature verification failed';
@@ -420,6 +421,22 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
         });
         console.log(`⚠️ Incremented paymentFailures for subscription ${payment.subscription}`);
       }
+
+      // Log to Excel/CSV for admin
+      const user = await User.findById(payment.user);
+      await PaymentFailureLogger.logFailure({
+        userId: payment.user?.toString(),
+        userEmail: user?.email || 'unknown',
+        userName: user ? `${user.firstName} ${user.lastName}` : 'unknown',
+        amount: payment.amount,
+        planName: payment.notes?.get('planName') || 'unknown',
+        planId: payment.notes?.get('planId') || '',
+        errorCode: 'SIGNATURE_MISMATCH',
+        errorDescription: 'Razorpay signature verification failed',
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+        type: payment.notes?.get('isNewSubscription') === 'true' ? 'subscription' : 'renewal'
+      });
     }
 
     res.status(400).json({
@@ -554,6 +571,23 @@ exports.handleWebhook = asyncHandler(async (req, res) => {
           });
           console.log(`⚠️ Webhook: Incremented paymentFailures for subscription ${failedPayment.subscription}`);
         }
+
+        // Log to Excel/CSV for admin
+        const user = failedPayment ? await User.findById(failedPayment.user) : null;
+        await PaymentFailureLogger.logFailure({
+          userId: failedPayment?.user?.toString(),
+          userEmail: user?.email || 'unknown',
+          userName: user ? `${user.firstName} ${user.lastName}` : 'unknown',
+          amount: (payload.amount || 0) / 100,
+          planName: failedPayment?.notes?.get('planName') || 'unknown',
+          planId: failedPayment?.notes?.get('planId') || '',
+          errorCode: payload.error_code || 'WEBHOOK_FAILURE',
+          errorDescription: payload.error_description || 'Payment failed via webhook',
+          razorpayOrderId: payload.order_id || '',
+          razorpayPaymentId: payload.id || '',
+          source: 'razorpay_webhook',
+          type: failedPayment?.notes?.get('isNewSubscription') === 'true' ? 'subscription' : 'renewal'
+        });
       } catch (err) {
         console.error('Failed to increment paymentFailures:', err.message);
       }

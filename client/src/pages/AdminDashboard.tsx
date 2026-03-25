@@ -591,6 +591,56 @@ const AdminDashboard: React.FC = () => {
               >
                 Export All Invoices
               </MUI.Button>
+              <MUI.Button
+                variant="outlined"
+                color="error"
+                startIcon={<Icons.Download />}
+                onClick={async () => {
+                  try {
+                    const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+                    if (!token || token === 'null' || token === 'undefined') {
+                      alert('Authentication required. Please login again.');
+                      window.location.href = '/admin-login';
+                      return;
+                    }
+
+                    const response = await fetch(
+                      'http://localhost:5001/api/admin/payment-failures/download',
+                      {
+                        headers: {
+                          'Authorization': `Bearer ${token}`,
+                          'Content-Type': 'application/json'
+                        }
+                      }
+                    );
+
+                    if (!response.ok) {
+                      if (response.status === 404) {
+                        alert('No payment failures recorded yet.');
+                      } else {
+                        alert(`Download failed with status: ${response.status}`);
+                      }
+                      return;
+                    }
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', `payment_failures_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.URL.revokeObjectURL(url);
+                  } catch (error) {
+                    console.error('Failed to download payment failures:', error);
+                    alert('Failed to download payment failures. Please try again.');
+                  }
+                }}
+                fullWidth
+              >
+                ⚠️ Payment Failures
+              </MUI.Button>
             </MUI.Stack>
           </MUI.Card>
         </MUI.Box>
