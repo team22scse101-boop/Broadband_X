@@ -156,7 +156,7 @@ class SubscriptionExpiryService {
 
     /**
      * Process subscriptions whose grace period has ended.
-     * Moves them to suspended status.
+     * Auto-cancels them since the validity has expired.
      */
     async processGracePeriodEnd() {
         try {
@@ -174,29 +174,53 @@ class SubscriptionExpiryService {
                 return;
             }
 
-            console.log(`📋 [ExpiryService] Found ${gracedSubs.length} grace period(s) ended`);
+            console.log(`📋 [ExpiryService] Found ${gracedSubs.length} grace period(s) ended — auto-cancelling`);
 
             for (const sub of gracedSubs) {
                 try {
-                    sub.status = 'suspended';
+                    sub.status = 'cancelled';
+                    sub.cancellation = {
+                        requestDate: new Date(),
+                        effectiveDate: new Date(),
+                        reason: 'Subscription validity expired and grace period ended without renewal',
+                        requestedBy: sub.user?._id || null,
+                        refundEligible: false,
+                        refundAmount: 0
+                    };
                     await sub.save();
 
-                    // Send suspension email
+                    // Send cancellation email
                     try {
                         if (sub.user?.email) {
-                            await emailService.sendEmail(sub.user.email, 'SUBSCRIPTION_SUSPENDED', {
+                            await emailService.sendEmail(sub.user.email, 'SUBSCRIPTION_CANCELLED', {
                                 firstName: sub.user.firstName,
-                                planName: sub.plan?.name || sub.planName || 'your plan'
+                                planName: sub.plan?.name || sub.planName || 'your plan',
+                                reason: 'Your subscription has been automatically cancelled as the validity expired and the grace period has ended. You can resubscribe anytime from your dashboard.'
                             });
                         }
                     } catch (emailErr) {
-                        console.log('  ⚠️ Could not send suspension email:', emailErr.message);
+                        console.log('  ⚠️ Could not send cancellation email:', emailErr.message);
                     }
 
-                    console.log(`  🚫 Suspended: ${sub.user?.firstName} ${sub.user?.lastName}`);
+                    console.log(`  🚫 Auto-cancelled: ${sub.user?.firstName} ${sub.user?.lastName} (${sub.plan?.name || 'unknown plan'})`);
                 } catch (subErr) {
-                    console.error(`  ❌ Error suspending subscription ${sub._id}:`, subErr.message);
+                    console.error(`  ❌ Error cancelling subscription ${sub._id}:`, subErr.message);
                 }
+            }
+
+            // Also cancel any subscriptions stuck in 'suspended' status (legacy cleanup)
+            const suspendedSubs = await Subscription.find({ status: 'suspended' });
+            for (const sub of suspendedSubs) {
+                sub.status = 'cancelled';
+                sub.cancellation = {
+                    requestDate: new Date(),
+                    effectiveDate: new Date(),
+                    reason: 'Auto-cancelled: previously suspended subscription cleaned up',
+                    refundEligible: false,
+                    refundAmount: 0
+                };
+                await sub.save();
+                console.log(`  🔄 Converted suspended → cancelled: ${sub._id}`);
             }
         } catch (error) {
             console.error('❌ [ExpiryService] Error processing grace period end:', error.message);

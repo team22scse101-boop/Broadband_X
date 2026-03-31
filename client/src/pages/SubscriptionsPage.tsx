@@ -139,6 +139,7 @@ const SubscriptionsPage: React.FC = () => {
     switch (status) {
       case 'active': return 'success';
       case 'cancelled': return 'error';
+      case 'grace_period': return 'warning';
       case 'suspended': return 'warning';
       case 'expired': return 'default';
       default: return 'default';
@@ -229,7 +230,7 @@ const SubscriptionsPage: React.FC = () => {
                   <MenuItem value="all">All Status</MenuItem>
                   <MenuItem value="active">Active</MenuItem>
                   <MenuItem value="cancelled">Cancelled</MenuItem>
-                  <MenuItem value="suspended">Suspended</MenuItem>
+                  <MenuItem value="grace_period">Grace Period</MenuItem>
                   <MenuItem value="expired">Expired</MenuItem>
                 </Select>
               </FormControl>
@@ -250,7 +251,7 @@ const SubscriptionsPage: React.FC = () => {
               <TableCell>Amount</TableCell>
               <TableCell>Start Date</TableCell>
               <TableCell>End Date</TableCell>
-              <TableCell>Created</TableCell>
+              <TableCell>Cancellation Details</TableCell>
               {user?.role === 'admin' && <TableCell>Actions</TableCell>}
             </TableRow>
           </TableHead>
@@ -307,9 +308,35 @@ const SubscriptionsPage: React.FC = () => {
                 </TableCell>
                 <TableCell>{formatDate(subscription.startDate)}</TableCell>
                 <TableCell>
-                  {subscription.endDate ? formatDate(subscription.endDate) : 'N/A'}
+                  {subscription.status === 'cancelled' && (subscription as any).cancellation?.effectiveDate
+                    ? formatDate((subscription as any).cancellation.effectiveDate)
+                    : subscription.endDate ? formatDate(subscription.endDate) : 'N/A'}
+                  {subscription.status === 'grace_period' && (subscription as any).gracePeriodEnd && (
+                    <Typography variant="caption" display="block" color="warning.main">
+                      Grace ends: {formatDate((subscription as any).gracePeriodEnd)}
+                    </Typography>
+                  )}
                 </TableCell>
-                <TableCell>{formatDate(subscription.createdAt)}</TableCell>
+                <TableCell>
+                  {subscription.status === 'cancelled' ? (
+                    <Box>
+                      <Typography variant="caption" sx={{ bgcolor: 'error.light', color: 'error.dark', px: 1, py: 0.3, borderRadius: 1, display: 'inline-block' }}>
+                        {(subscription as any).cancellation?.reason
+                          ? ((subscription as any).cancellation.reason.length > 50
+                            ? (subscription as any).cancellation.reason.substring(0, 50) + '...'
+                            : (subscription as any).cancellation.reason)
+                          : 'No reason recorded'}
+                      </Typography>
+                      {(subscription as any).cancellation?.requestDate && (
+                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+                          On: {formatDate((subscription as any).cancellation.requestDate)}
+                        </Typography>
+                      )}
+                    </Box>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">—</Typography>
+                  )}
+                </TableCell>
                 {user?.role === 'admin' && (
                   <TableCell>
                     {subscription.status !== 'cancelled' && (

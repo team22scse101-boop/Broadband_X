@@ -382,26 +382,35 @@ app.post('/api/payment-failures/log', authenticateToken, async (req, res) => {
 });
 
 // Payment failures API for admin panel
-app.get('/api/admin/payment-failures', authenticateToken, (req, res) => {
+app.get('/api/admin/payment-failures', authenticateToken, async (req, res) => {
   try {
     const PaymentFailureLogger = require('./utils/PaymentFailureLogger');
-    const stats = PaymentFailureLogger.getStats();
-    const failures = PaymentFailureLogger.getFailures({ limit: parseInt(req.query.limit) || 50 });
+    const stats = await PaymentFailureLogger.getStats();
+    const failures = await PaymentFailureLogger.getFailures({ limit: parseInt(req.query.limit) || 50 });
     res.json({ success: true, data: { stats, failures } });
   } catch (error) {
+    console.error('Failed to fetch payment failures:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch payment failures' });
   }
 });
 
 // Download payment failures as CSV (Excel-readable)
-app.get('/api/admin/payment-failures/download', authenticateToken, (req, res) => {
-  const csvPath = path.join(__dirname, 'payment_failures.csv');
-  if (!require('fs').existsSync(csvPath)) {
-    return res.status(404).json({ success: false, message: 'No payment failures recorded yet.' });
+app.get('/api/admin/payment-failures/download', authenticateToken, async (req, res) => {
+  try {
+    const PaymentFailureLogger = require('./utils/PaymentFailureLogger');
+    // Regenerate CSV from MongoDB before serving
+    await PaymentFailureLogger.regenerateCSV();
+    const csvPath = path.join(__dirname, 'payment_failures.csv');
+    if (!require('fs').existsSync(csvPath)) {
+      return res.status(404).json({ success: false, message: 'No payment failures recorded yet.' });
+    }
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=payment_failures.csv');
+    res.sendFile(csvPath);
+  } catch (error) {
+    console.error('Failed to download payment failures:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate CSV' });
   }
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename=payment_failures.csv');
-  res.sendFile(csvPath);
 });
 
 // Churn Monitoring API endpoint
