@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
+const hpp = require('hpp');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
@@ -60,8 +61,20 @@ const io = new Server(server, {
   }
 });
 
-// Security middleware
-app.use(helmet());
+// Security middleware with Content Security Policy
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://checkout.razorpay.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://api.razorpay.com", "https://lumberjack.razorpay.com", "ws://localhost:*", "wss://localhost:*"],
+      frameSrc: ["https://api.razorpay.com", "https://checkout.razorpay.com"]
+    }
+  }
+}));
 app.use(compression());
 
 // Rate limiting - More lenient in development
@@ -124,6 +137,9 @@ app.use(mongoSanitize());
 
 // Data Sanitization against XSS
 app.use(xss());
+
+// Prevent HTTP Parameter Pollution
+app.use(hpp());
 
 // Logging middleware
 if (process.env.NODE_ENV === 'development') {

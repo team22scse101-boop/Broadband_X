@@ -20,6 +20,7 @@ BroadbandX is a full-stack broadband subscription management platform with integ
 - 🔐 **Separate Admin & Customer login** portals
 - 💳 **Razorpay** payment integration with failure tracking
 - 📈 **Speed test** with 7-day persistent history
+- 🛡️ **11-layer security** (XSS, NoSQL injection, CSRF, brute force, CSP)
 
 ---
 
@@ -53,7 +54,8 @@ BroadbandX is a full-stack broadband subscription management platform with integ
 | **At-Risk Monitoring** | Automated 6-hour customer scans with real-time alerts |
 | **Dynamic Pricing** | Formula-based pricing: `P = P_base × (1 + α·D + β·E + γ·R)` |
 | **Customer Segmentation** | K-Means clustering into 5 segments |
-| **Payment Failure Tracking** | Auto-logged to CSV/Excel + admin dashboard with stats |
+| **Payment Failure Tracking** | MongoDB-backed persistent logging + admin dashboard + CSV export |
+| **Auto-Cancellation** | Expired subscriptions → 3-day grace period → auto-cancelled |
 
 ---
 
@@ -67,7 +69,7 @@ BroadbandX is a full-stack broadband subscription management platform with integ
 | Database | MongoDB Atlas (Mongoose ODM) |
 | Real-time | Socket.io |
 | Payments | Razorpay |
-| Email | Resend API |
+| Email | Google Mail |
 | Auth | JWT (access + refresh tokens), bcrypt |
 
 ### ML Service
@@ -114,10 +116,12 @@ BroadbandX/
 │   │   ├── User.js
 │   │   ├── Subscription.js
 │   │   ├── Payment.js
+│   │   ├── PaymentFailure.js
 │   │   ├── SpeedTestResult.js
 │   │   └── ...
 │   ├── routes/                 # API routes
 │   ├── services/               # Background services (expiry, usage, churn)
+│   ├── validators/             # Joi input validation schemas
 │   ├── utils/                  # Utilities (email, PaymentFailureLogger)
 │   ├── scripts/                # Database seed & migration scripts
 │   └── server.js               # Main server entry point
@@ -267,13 +271,33 @@ python -m training.train_all
 
 ---
 
+## Security
+
+BroadbandX implements **11 security layers** covering all major attack vectors:
+
+| Protection | Technology | Attack Prevented |
+|------------|-----------|------------------|
+| NoSQL Injection | `express-mongo-sanitize` | Query manipulation via `$` operators |
+| XSS | `xss-clean` + React auto-escaping | Script injection |
+| HTTP Headers | `helmet` + Content Security Policy | Clickjacking, MIME sniffing |
+| Brute Force | `express-rate-limit` (5 login/15min) | Password guessing |
+| CORS | Whitelisted origins only | Unauthorized cross-origin requests |
+| Parameter Pollution | `hpp` | Duplicate query param attacks |
+| Password Hashing | `bcrypt` (12 salt rounds) | Password cracking |
+| Input Validation | `Joi` (stripUnknown) | Mass assignment, malformed input |
+| Payment Security | Razorpay HMAC-SHA256 | Payment tampering |
+| Auth | JWT + role-based access control | Unauthorized access |
+| Error Handling | Production-safe error responses | Information leakage |
+
+---
+
 ## Background Services
 
 The server runs several automated background services:
 
 | Service | Interval | Purpose |
 |---------|----------|---------|
-| Subscription Expiry | Hourly | Checks & expires subscriptions, handles grace periods |
+| Subscription Expiry | Daily + startup | Auto-cancels expired subscriptions after 3-day grace period |
 | Usage Simulator | Periodic | Simulates usage data for demo |
 | Churn Monitoring | 6 hours | Scans all customers for churn risk |
 | Reminder Scheduler | Daily | Sends billing reminders |
