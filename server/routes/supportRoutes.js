@@ -363,8 +363,8 @@ router.get('/admin/tickets', authenticateToken, adminOnly, async (req, res) => {
 
         const total = await SupportTicket.countDocuments(query);
 
-        // Get summary counts
-        const summary = await SupportTicket.getStatistics(7);
+        // Get summary counts (all-time for dashboard cards)
+        const summary = await SupportTicket.getStatistics(0);
 
         res.json({
             success: true,

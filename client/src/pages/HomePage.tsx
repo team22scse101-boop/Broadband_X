@@ -16,6 +16,7 @@ import WifiIcon from '@mui/icons-material/Wifi';
 import SpeedIcon from '@mui/icons-material/Speed';
 import SecurityIcon from '@mui/icons-material/Security';
 import SupportIcon from '@mui/icons-material/Support';
+import Reviews from '../components/Reviews';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -272,6 +273,22 @@ const HomePage: React.FC = () => {
           </Box>
         </Container>
       </Box>
+
+      {/* Customer Reviews Section */}
+      <Container maxWidth="lg" sx={{ py: 8 }}>
+        <Typography variant="h2" component="h2" textAlign="center" gutterBottom>
+          What Our Customers Say
+        </Typography>
+        <Typography
+          variant="h6"
+          textAlign="center"
+          color="text.secondary"
+          sx={{ mb: 6 }}
+        >
+          Real reviews from our valued customers
+        </Typography>
+        <Reviews limit={6} />
+      </Container>
 
       {/* CTA Section */}
       <Box sx={{ bgcolor: 'primary.main', color: 'white', py: 8 }}>

@@ -39,10 +39,12 @@ const Reviews: React.FC<ReviewsProps> = ({ type, limit = 10 }) => {
     fetchReviews();
   }, [type, page]);
 
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+
   const fetchReviews = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/feedback/public', {
+      const response = await axios.get(`${API_URL}/feedback/public`, {
         params: {
           type,
           page,
@@ -89,7 +91,7 @@ const Reviews: React.FC<ReviewsProps> = ({ type, limit = 10 }) => {
       <div className="flex items-start justify-between">
         <div>
           <h3 className="font-semibold text-lg">
-            {review.isAnonymous 
+            {review.isAnonymous || !review.user
               ? 'Anonymous User'
               : `${review.user.firstName} ${review.user.lastName}`}
           </h3>

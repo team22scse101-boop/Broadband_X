@@ -232,27 +232,32 @@ supportTicketSchema.methods.resolve = function (agentId) {
 };
 
 // Static: Get ticket statistics
-supportTicketSchema.statics.getStatistics = async function (dateRange = 7) {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - dateRange);
+supportTicketSchema.statics.getStatistics = async function (dateRange = 0) {
+    const pipeline = [];
 
-    const stats = await this.aggregate([
-        { $match: { createdAt: { $gte: startDate } } },
-        {
-            $group: {
-                _id: null,
-                total: { $sum: 1 },
-                open: { $sum: { $cond: [{ $eq: ['$status', 'open'] }, 1, 0] } },
-                inProgress: { $sum: { $cond: [{ $in: ['$status', ['assigned', 'in-progress']] }, 1, 0] } },
-                resolved: { $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] } },
-                closed: { $sum: { $cond: [{ $eq: ['$status', 'closed'] }, 1, 0] } },
-                urgent: { $sum: { $cond: [{ $eq: ['$priority', 'urgent'] }, 1, 0] } },
-                high: { $sum: { $cond: [{ $eq: ['$priority', 'high'] }, 1, 0] } },
-                avgSatisfaction: { $avg: '$satisfaction.rating' },
-                slaBreached: { $sum: { $cond: ['$sla.responseBreached', 1, 0] } }
-            }
+    // Only filter by date if dateRange is specified and > 0
+    if (dateRange && dateRange > 0) {
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - dateRange);
+        pipeline.push({ $match: { createdAt: { $gte: startDate } } });
+    }
+
+    pipeline.push({
+        $group: {
+            _id: null,
+            total: { $sum: 1 },
+            open: { $sum: { $cond: [{ $eq: ['$status', 'open'] }, 1, 0] } },
+            inProgress: { $sum: { $cond: [{ $in: ['$status', ['assigned', 'in-progress']] }, 1, 0] } },
+            resolved: { $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] } },
+            closed: { $sum: { $cond: [{ $eq: ['$status', 'closed'] }, 1, 0] } },
+            urgent: { $sum: { $cond: [{ $eq: ['$priority', 'urgent'] }, 1, 0] } },
+            high: { $sum: { $cond: [{ $eq: ['$priority', 'high'] }, 1, 0] } },
+            avgSatisfaction: { $avg: '$satisfaction.rating' },
+            slaBreached: { $sum: { $cond: ['$sla.responseBreached', 1, 0] } }
         }
-    ]);
+    });
+
+    const stats = await this.aggregate(pipeline);
 
     return stats[0] || {
         total: 0, open: 0, inProgress: 0, resolved: 0, closed: 0,

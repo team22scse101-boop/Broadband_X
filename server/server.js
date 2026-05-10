@@ -513,13 +513,24 @@ app.post('/api/billing/complete-payment', (req, res) => {
 
 // REMOVED: Mock PDF endpoint - now using real routes/pdf.js
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    status: 'error',
-    message: `Route ${req.originalUrl} not found`,
+// Serve React build in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from the React app build
+  app.use(express.static(path.join(__dirname, '../client/build')));
+
+  // Catch-all handler: serve React index.html for any non-API route
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
   });
-});
+} else {
+  // 404 handler for development
+  app.use('*', (req, res) => {
+    res.status(404).json({
+      status: 'error',
+      message: `Route ${req.originalUrl} not found`,
+    });
+  });
+}
 
 // Global error handler
 app.use(errorHandler);

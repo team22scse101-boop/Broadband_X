@@ -9,7 +9,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-package-lock.json
+# package-lock.json  # Needed for Railway/CI builds
 yarn.lock
 
 # Environment Variables
@@ -18,7 +18,8 @@ yarn.lock
 .env.development.local
 .env.test.local
 .env.production.local
-*.env
+# Note: client/.env.production is NOT ignored (needed for build)
+!client/.env.production
 
 # Build Output
 build/
