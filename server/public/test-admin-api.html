@@ -1,0 +1,82 @@
+// Simple test to check admin API endpoints
+const testAdminAPI = async () => {
+  const baseURL = 'http://localhost:5000/api';
+  
+  console.log('🧪 Testing Admin API Endpoints...\n');
+  
+  try {
+    // Test basic connectivity
+    console.log('1. Testing basic connectivity...');
+    const healthResponse = await fetch(`${baseURL}/health`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log('Health check status:', healthResponse.status);
+    
+    // Test admin login
+    console.log('\n2. Testing admin login...');
+    const loginResponse = await fetch(`${baseURL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: 'admin@example.com',
+        password: 'admin123'
+      })
+    });
+    
+    console.log('Login response status:', loginResponse.status);
+    const loginData = await loginResponse.json();
+    console.log('Login response:', loginData);
+    
+    if (loginData.token) {
+      console.log('\n3. Testing admin dashboard with token...');
+      const dashboardResponse = await fetch(`${baseURL}/admin/dashboard`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${loginData.token}`
+        }
+      });
+      
+      console.log('Dashboard response status:', dashboardResponse.status);
+      const dashboardData = await dashboardResponse.json();
+      console.log('Dashboard data:', dashboardData);
+      
+      console.log('\n4. Testing admin subscriptions with token...');
+      const subscriptionsResponse = await fetch(`${baseURL}/admin/subscriptions`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${loginData.token}`
+        }
+      });
+      
+      console.log('Subscriptions response status:', subscriptionsResponse.status);
+      const subscriptionsData = await subscriptionsResponse.json();
+      console.log('Subscriptions data:', subscriptionsData);
+      
+      console.log('\n5. Testing admin users with token...');
+      const usersResponse = await fetch(`${baseURL}/admin/users`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${loginData.token}`
+        }
+      });
+      
+      console.log('Users response status:', usersResponse.status);
+      const usersData = await usersResponse.json();
+      console.log('Users data:', usersData);
+    }
+    
+  } catch (error) {
+    console.error('API Test Error:', error);
+  }
+};
+
+// Call the test function
+testAdminAPI();
