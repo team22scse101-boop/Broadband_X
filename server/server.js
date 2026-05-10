@@ -48,6 +48,11 @@ const subscriptionExpiryService = require('./services/SubscriptionExpiryService'
 const app = express();
 const server = createServer(app);
 
+// Trust proxy (Railway/Heroku use reverse proxies that set X-Forwarded-For)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Socket.io setup with CORS
 const io = new Server(server, {
   cors: {

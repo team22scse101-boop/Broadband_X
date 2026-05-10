@@ -66,7 +66,7 @@ const QRPaymentModal = ({ open, onClose, invoice, onPaymentSuccess }: any) => {
       console.log(`💳 Processing payment for invoice ${invoice.id}`);
 
       // Call server to complete payment in database
-      const response = await axios.post('http://localhost:5001/api/billing/complete-payment', {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/billing/complete-payment`, {
         invoiceId: invoice.id,
         paymentId: invoice.id,
         transactionId: transactionId
@@ -248,7 +248,7 @@ const InvoicePaymentButton = ({ invoice, onPaymentSuccess, onPaymentError, paidI
       console.log('📄 Using PDF invoice ID:', pdfInvoiceId, 'for invoice:', invoice.invoiceNumber);
 
       // Open PDF in new window for paid invoices only (no userId needed)
-      const pdfUrl = `http://localhost:5001/api/pdf/invoice/${pdfInvoiceId}`;
+      const pdfUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/pdf/invoice/${pdfInvoiceId}`;
       console.log('📄 Opening PDF URL:', pdfUrl);
       window.open(pdfUrl, '_blank');
 
@@ -411,7 +411,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
       // Make single API call to get subscription data with cache busting
       const cacheBuster = forceFresh ? `&t=${Date.now()}&cb=${Math.random()}` : '';
       const response = await axios.get(
-        `http://localhost:5001/api/customer/subscriptions?userId=${userId}${cacheBuster}`,
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/customer/subscriptions?userId=${userId}${cacheBuster}`,
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -490,7 +490,7 @@ const BillingDashboard: React.FC<BillingDashboardProps> = ({ onError, onSuccess 
         try {
           console.log('🔍 Fetching invoices with userId:', userId);
           const invoicesResponse = await axios.get(
-            `http://localhost:5001/api/billing/invoices/${userId}`,
+            `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/billing/invoices/${userId}`,
             {
               headers: { Authorization: `Bearer ${token}` },
               timeout: 10000

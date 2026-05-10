@@ -450,7 +450,7 @@ const AdminDashboard: React.FC = () => {
                     console.log('Sending request with token length:', token.length);
 
                     const response = await fetch(
-                      'http://localhost:5001/api/usage/export/csv',
+                      `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/usage/export/csv`,
                       {
                         headers: {
                           'Authorization': `Bearer ${token}`,
@@ -502,7 +502,7 @@ const AdminDashboard: React.FC = () => {
                     }
 
                     const response = await fetch(
-                      'http://localhost:5001/api/usage/export/user-summary',
+                      `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/usage/export/user-summary`,
                       {
                         headers: {
                           'Authorization': `Bearer ${token}`,
@@ -553,7 +553,7 @@ const AdminDashboard: React.FC = () => {
                     console.log('Sending request with token length:', token.length);
 
                     const response = await fetch(
-                      'http://localhost:5001/api/billing/invoices/export/csv',
+                      `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/billing/invoices/export/csv`,
                       {
                         headers: {
                           'Authorization': `Bearer ${token}`,
@@ -605,7 +605,7 @@ const AdminDashboard: React.FC = () => {
                     }
 
                     const response = await fetch(
-                      'http://localhost:5001/api/admin/payment-failures/download',
+                      `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/admin/payment-failures/download`,
                       {
                         headers: {
                           'Authorization': `Bearer ${token}`,
@@ -968,7 +968,7 @@ const AdminDashboard: React.FC = () => {
               setMlLoading(true);
               try {
                 const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
-                const response = await fetch('http://localhost:5001/api/admin/churn-scan', {
+                const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/admin/churn-scan`, {
                   method: 'POST',
                   headers: { 'Authorization': `Bearer ${token}` }
                 });

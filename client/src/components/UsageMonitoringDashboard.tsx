@@ -65,7 +65,7 @@ const UsageMonitoringDashboard: React.FC = () => {
         
         // Fetch real usage analytics from the API
         const response = await fetch(
-          `http://localhost:5001/api/customer/usage-analytics?userId=${userId}&timeRange=${timeRange}`,
+          `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/customer/usage-analytics?userId=${userId}&timeRange=${timeRange}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,

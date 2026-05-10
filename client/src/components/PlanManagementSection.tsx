@@ -25,7 +25,7 @@ const PlanManagementSection: React.FC = () => {
     const fetchPlans = async () => {
       try {
         const token = localStorage.getItem('access_token');
-        const response = await fetch('http://localhost:5001/api/billing/plans', {
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/billing/plans`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

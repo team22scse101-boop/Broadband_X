@@ -83,11 +83,12 @@ interface CustomerOption {
 }
 
 // API service for AI Pricing
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 const aiPricingService = {
     getToken: () => localStorage.getItem('access_token') || sessionStorage.getItem('access_token'),
 
     async fetchTrends(): Promise<TrendData[]> {
-        const response = await fetch('http://localhost:5001/api/admin/ai-pricing/trends', {
+        const response = await fetch(`${API_URL}/admin/ai-pricing/trends`, {
             headers: { 'Authorization': `Bearer ${this.getToken()}` }
         });
         const data = await response.json();
@@ -95,7 +96,7 @@ const aiPricingService = {
     },
 
     async fetchModelMetrics(): Promise<any> {
-        const response = await fetch('http://localhost:5001/api/admin/ai-pricing/model-metrics', {
+        const response = await fetch(`${API_URL}/admin/ai-pricing/model-metrics`, {
             headers: { 'Authorization': `Bearer ${this.getToken()}` }
         });
         const data = await response.json();
@@ -103,7 +104,7 @@ const aiPricingService = {
     },
 
     async fetchAtRiskCustomers(): Promise<{ customers: Customer[]; summary: any }> {
-        const response = await fetch('http://localhost:5001/api/admin/ai-pricing/at-risk-customers', {
+        const response = await fetch(`${API_URL}/admin/ai-pricing/at-risk-customers`, {
             headers: { 'Authorization': `Bearer ${this.getToken()}` }
         });
         const data = await response.json();
@@ -111,7 +112,7 @@ const aiPricingService = {
     },
 
     async fetchCustomers(search: string = ''): Promise<CustomerOption[]> {
-        const response = await fetch(`http://localhost:5001/api/admin/ai-pricing/customers?search=${search}`, {
+        const response = await fetch(`${API_URL}/admin/ai-pricing/customers?search=${search}`, {
             headers: { 'Authorization': `Bearer ${this.getToken()}` }
         });
         const data = await response.json();
@@ -119,7 +120,7 @@ const aiPricingService = {
     },
 
     async predictChurn(customerId: string): Promise<any> {
-        const response = await fetch(`http://localhost:5001/api/admin/ai-pricing/predict/${customerId}`, {
+        const response = await fetch(`${API_URL}/admin/ai-pricing/predict/${customerId}`, {
             headers: { 'Authorization': `Bearer ${this.getToken()}` }
         });
         const data = await response.json();
@@ -127,7 +128,7 @@ const aiPricingService = {
     },
 
     async triggerChurnScan(): Promise<any> {
-        const response = await fetch('http://localhost:5001/api/admin/churn-scan', {
+        const response = await fetch(`${API_URL}/admin/churn-scan`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${this.getToken()}` }
         });
@@ -136,7 +137,7 @@ const aiPricingService = {
     },
 
     async logRetentionAction(customerId: string, action: string, notes?: string): Promise<void> {
-        await fetch('http://localhost:5001/api/admin/ai-pricing/retention-action', {
+        await fetch(`${API_URL}/admin/ai-pricing/retention-action`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${this.getToken()}`,
@@ -148,7 +149,7 @@ const aiPricingService = {
 
     // Pricing Proposal Workflow APIs
     async createProposal(changes: any[], projectedImpact?: any): Promise<any> {
-        const response = await fetch('http://localhost:5001/api/admin/ai-pricing/proposals', {
+        const response = await fetch(`${API_URL}/admin/ai-pricing/proposals`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${this.getToken()}`,
@@ -161,7 +162,7 @@ const aiPricingService = {
     },
 
     async getProposals(status: string = 'all'): Promise<any> {
-        const response = await fetch(`http://localhost:5001/api/admin/ai-pricing/proposals?status=${status}`, {
+        const response = await fetch(`${API_URL}/admin/ai-pricing/proposals?status=${status}`, {
             headers: { 'Authorization': `Bearer ${this.getToken()}` }
         });
         const data = await response.json();
@@ -169,7 +170,7 @@ const aiPricingService = {
     },
 
     async approveProposal(id: string, notes?: string): Promise<any> {
-        const response = await fetch(`http://localhost:5001/api/admin/ai-pricing/proposals/${id}/approve`, {
+        const response = await fetch(`${API_URL}/admin/ai-pricing/proposals/${id}/approve`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${this.getToken()}`,
@@ -181,7 +182,7 @@ const aiPricingService = {
     },
 
     async applyProposal(id: string): Promise<any> {
-        const response = await fetch(`http://localhost:5001/api/admin/ai-pricing/proposals/${id}/apply`, {
+        const response = await fetch(`${API_URL}/admin/ai-pricing/proposals/${id}/apply`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${this.getToken()}` }
         });
@@ -309,7 +310,7 @@ const AIPricingDashboard: React.FC = () => {
         setFailuresLoading(true);
         try {
             const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
-            const response = await fetch('http://localhost:5001/api/admin/payment-failures?limit=100', {
+            const response = await fetch(`${API_URL}/admin/payment-failures?limit=100`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();
@@ -1030,7 +1031,7 @@ const AIPricingDashboard: React.FC = () => {
                                     onClick={async () => {
                                         try {
                                             const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
-                                            const response = await fetch('http://localhost:5001/api/admin/payment-failures/download', {
+                                            const response = await fetch(`${API_URL}/admin/payment-failures/download`, {
                                                 headers: { 'Authorization': `Bearer ${token}` }
                                             });
                                             if (!response.ok) {
