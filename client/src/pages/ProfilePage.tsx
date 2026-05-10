@@ -56,11 +56,11 @@ const ProfilePage: React.FC = () => {
     try {
       const token = localStorage.getItem('access_token');
       const headers = { Authorization: `Bearer ${token}` };
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
       const [subsRes, usageRes] = await Promise.allSettled([
-        axios.get(`${apiUrl}/api/customer/subscriptions`, { headers }),
-        axios.get(`${apiUrl}/api/usage/current`, { headers }),
+        axios.get(`${apiUrl}/customer/subscriptions`, { headers }),
+        axios.get(`${apiUrl}/usage/current`, { headers }),
       ]);
 
       if (subsRes.status === 'fulfilled') {

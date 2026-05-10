@@ -113,23 +113,44 @@ exports.getCustomerSubscriptions = async (req, res) => {
     console.log('🔍 SUBSCRIPTION REQUEST DEBUG:');
     console.log('  👤 Authenticated User:', userName, '(' + userEmail + ')');
     console.log('  🆔 User ID:', userId.toString());
-    console.log('  📅 Request Time:', new Date().toISOString());
-    console.log('  🌐 Request URL:', req.originalUrl);
 
+    // Auto-expire any subscriptions whose endDate has passed
+    const now = new Date();
+    const expiredResult = await Subscription.updateMany(
+      {
+        user: userId,
+        status: 'active',
+        endDate: { $lt: now }
+      },
+      {
+        $set: {
+          status: 'expired',
+          'cancellation.requestDate': now,
+          'cancellation.effectiveDate': now,
+          'cancellation.reason': 'Subscription validity expired'
+        }
+      }
+    );
+
+    if (expiredResult.modifiedCount > 0) {
+      console.log(`  ⏰ Auto-expired ${expiredResult.modifiedCount} subscription(s) for ${userName}`);
+    }
+
+    // Only return active and grace_period subscriptions
     const subscriptions = await Subscription.find({
-      user: userId
-      // Removed status filter to see all subscriptions
+      user: userId,
+      status: { $in: ['active', 'grace_period'] }
     }).populate('plan').sort({ createdAt: -1 });
 
     console.log('📊 SUBSCRIPTION RESULTS:');
-    console.log('  🔢 Total subscriptions found:', subscriptions.length);
+    console.log('  🔢 Active subscriptions found:', subscriptions.length);
     subscriptions.forEach((sub, index) => {
       console.log(`  📋 Subscription ${index + 1}:`, {
         id: sub._id,
         planName: sub.plan?.name || 'NO PLAN',
         userId: sub.user.toString(),
         status: sub.status,
-        createdAt: sub.createdAt,
+        endDate: sub.endDate,
         pricing: sub.pricing
       });
 
@@ -137,7 +158,6 @@ exports.getCustomerSubscriptions = async (req, res) => {
       const currentPlanName = sub.plan?.name || sub.planName;
 
       if (currentPlanName === 'Basic Plan29') {
-        console.log('  🔧 Fixing Basic Plan29 pricing in response...');
         sub.pricing = {
           basePrice: 32.18,
           discountApplied: 0,
@@ -146,15 +166,8 @@ exports.getCustomerSubscriptions = async (req, res) => {
           taxAmount: 0,
           currency: 'INR'
         };
-
-        // Also ensure planName is set correctly
-        if (!sub.planName) {
-          sub.planName = 'Basic Plan29';
-        }
-
-        console.log('  ✅ Fixed Basic Plan29 pricing:', sub.pricing);
+        if (!sub.planName) sub.planName = 'Basic Plan29';
       } else if (currentPlanName === 'Premium Plan79') {
-        console.log('  🔧 Fixing Premium Plan79 pricing in response...');
         sub.pricing = {
           basePrice: 98.68,
           discountApplied: 0,
@@ -163,20 +176,12 @@ exports.getCustomerSubscriptions = async (req, res) => {
           taxAmount: 0,
           currency: 'INR'
         };
-
-        // Also ensure planName is set correctly
-        if (!sub.planName) {
-          sub.planName = 'Premium Plan79';
-        }
-
-        console.log('  ✅ Fixed Premium Plan79 pricing:', sub.pricing);
+        if (!sub.planName) sub.planName = 'Premium Plan79';
       } else if (sub.pricing && sub.pricing.taxAmount > 0) {
         // Remove tax from all other plans
-        console.log(`  🔧 Removing tax from ${currentPlanName}...`);
         sub.pricing.taxAmount = 0;
         sub.pricing.totalAmount = sub.pricing.basePrice;
         sub.pricing.finalPrice = sub.pricing.basePrice;
-        console.log(`  ✅ Removed tax from ${currentPlanName} - Final price: ₹${sub.pricing.totalAmount}`);
       }
     });
 

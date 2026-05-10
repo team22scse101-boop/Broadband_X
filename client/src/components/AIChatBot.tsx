@@ -77,7 +77,7 @@ const AIChatBot: React.FC = () => {
         try {
             const token = localStorage.getItem('access_token');
             const { data } = await axios.post(
-                `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/chatbot/message`,
+                `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/chatbot/message`,
                 { message: trimmed },
                 { headers: { Authorization: `Bearer ${token}` } }
             );

@@ -48,7 +48,7 @@ const ResetPassword: React.FC = () => {
 
     try {
       const response = await axios.post(
-        `${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001'}/api/auth/reset-password/${token}`,
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001/api'}/auth/reset-password/${token}`,
         { password }
       );
 
