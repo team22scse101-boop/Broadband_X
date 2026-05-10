@@ -1,7 +1,7 @@
 const asyncHandler = require('../middleware/async');
 const ErrorResponse = require('../utils/errorResponse');
 const Billing = require('../models/Billing');
-const billingService = require('../services/billingService');
+const billingService = require('../services/BillingService');
 
 // @desc    Get all invoices for a user
 // @route   GET /api/billing/invoices/:userId
