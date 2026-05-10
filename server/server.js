@@ -85,7 +85,7 @@ app.use(compression());
 // Rate limiting - More lenient in development
 const limiter = rateLimit({
   windowMs: (process.env.RATE_LIMIT_WINDOW || 15) * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 10000 : (process.env.RATE_LIMIT_MAX_REQUESTS || 100), // Much higher limit for development
+  max: process.env.NODE_ENV === 'development' ? 10000 : (process.env.RATE_LIMIT_MAX_REQUESTS || 500), // 500 per 15 min for production SPA
   message: {
     error: 'Too many requests from this IP, please try again later.',
   },
